@@ -1,14 +1,8 @@
 import asyncio
 import json
 import os
-import re
-from pathlib import Path
-from typing import Dict, Set, Optional, Tuple
 
-from httpx import get
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-from sqlalchemy import select
 from src.database.db import (
     upsert_auth_model,
     upsert_data_model,
@@ -20,18 +14,11 @@ from src.database.db import (
 from src.ai.entry_points_agent import get_entry_points
 from src.ai.auth_agent import get_auth_analysis
 from src.ai.data_model_agent import get_data_model_analysis
-from src.database.repo_service import AnalyzeJobService
 from src.database.models import (
     AnalyzeJobs,
-    RepoModel,
-    AuthModel,
-    DataModel,
-    OverviewModel,
-    EntryPointsModel,
 )
 from src.analyzer.repo_analyzer import build_repo_model, find_readme
 from src.ai.overview_agent import get_repo_overview
-from src.types.files import File, Repo
 
 import git
 
@@ -56,7 +43,13 @@ async def generate_analysis_stream(job: AnalyzeJobs, db: AsyncSession):
             repo_model, overview_model, auth_model, data_model, entry_points_model = (
                 models_result
             )
-            if repo_model and overview_model and auth_model and data_model and entry_points_model:
+            if (
+                repo_model
+                and overview_model
+                and auth_model
+                and data_model
+                and entry_points_model
+            ):
 
                 yield f"data: {json.dumps({'event_type': 'overview', 'message': overview_model.overview_data})}\n\n"
                 yield f"data: {json.dumps({'event_type': 'entry_points', 'message': entry_points_model.usage_data})}\n\n"
