@@ -3,7 +3,6 @@ import re
 import json
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 from typing import Dict, Any, Optional, List, Tuple
 from contextlib import asynccontextmanager
@@ -15,10 +14,8 @@ from src.ai.question_master_agent import answer_question, Message, QuestionRespo
 from src.types.files import Repo
 
 from ..database.config import init_db, get_db
-from ..database.repo_service import AnalyzeJobService
+from ..database.analyze_job_service import AnalyzeJobService
 from ..database.db import get_models_by_analyze_job_id
-
-import git
 
 
 def extract_github_repo_info(url: str) -> Tuple[str, str]:
@@ -62,15 +59,6 @@ app = FastAPI(
     description="A FastAPI application for analyzing GitHub repository URLs",
     version="1.0.0",
     lifespan=lifespan,
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Configure this properly for production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
 
 
@@ -118,14 +106,10 @@ async def analyze_url(
 
     # Check if repo is public
     response = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}")
-    print(response.status_code)
-    print(owner, repo_name)
     if response.status_code != 200:
         raise HTTPException(status_code=400, detail="Repository is not public")
 
     repo_metadata = response.json()
-
-    print(repo_metadata)
 
     # quickly save essentail info so we can return early
     saved_job = await AnalyzeJobService.create_analyze_job(
@@ -136,7 +120,6 @@ async def analyze_url(
         description=repo_metadata["description"],
         default_branch=repo_metadata["default_branch"],
     )
-
 
     if not saved_job:
         raise HTTPException(
@@ -171,7 +154,6 @@ async def analyze_repo_stream(
 
     # Return SSE stream with timeout protection
 
-    
     return StreamingResponse(
         generate_analysis_stream(job, db),
         media_type="text/event-stream",
@@ -184,20 +166,18 @@ async def analyze_repo_stream(
     )
 
 
-@app.post("/repo/{uuid}/ask", response_model=AskQuestionResponse)
+@app.post("/analyze/{uuid}/ask", response_model=AskQuestionResponse)
 async def ask_question(
-    uuid: str, 
-    request: AskQuestionRequest, 
-    db: AsyncSession = Depends(get_db)
+    uuid: str, request: AskQuestionRequest, db: AsyncSession = Depends(get_db)
 ) -> AskQuestionResponse:
     """
     Answer questions about a repository using AI
-    
+
     Args:
         uuid: Repository UUID
         request: AskQuestionRequest containing the conversation messages
         db: Database session dependency
-    
+
     Returns:
         AskQuestionResponse with the AI's answer
     """
@@ -207,14 +187,15 @@ async def ask_question(
         raise HTTPException(
             status_code=404, detail=f"Repository with UUID {uuid} not found in database"
         )
-    
+
     # Get the repository model data
     models = await get_models_by_analyze_job_id(db, job.id)
     if not models or not models[0] or not models[0].model_data:
         raise HTTPException(
-            status_code=404, detail=f"Repository model data not found for UUID {uuid}. Please ensure the repository has been analyzed."
+            status_code=404,
+            detail=f"Repository model data not found for UUID {uuid}. Please ensure the repository has been analyzed.",
         )
-    
+
     # Deserialize the repository model data
     try:
         repo_data = json.loads(models[0].model_data)
@@ -223,7 +204,7 @@ async def ask_question(
         raise HTTPException(
             status_code=500, detail=f"Failed to parse repository model data: {str(e)}"
         )
-    
+
     # Use the Question Master agent to answer the question
     try:
         response = await answer_question(repo, request.messages)

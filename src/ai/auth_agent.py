@@ -10,7 +10,8 @@ client = AsyncOpenAI()
 class AuthAnalysis(BaseModel):
 
     class AuthFile(BaseModel):
-        fileName: str
+        filePath: str
+        cleanName: str
         explaination: str
 
     summary: str

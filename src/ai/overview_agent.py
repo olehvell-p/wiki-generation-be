@@ -15,6 +15,7 @@ class OverviewSummary(BaseModel):
         explaination: str
 
     summary: str
+    oneLiner: str
     keyFunctionality: list[KeyFunctionality]
 
 

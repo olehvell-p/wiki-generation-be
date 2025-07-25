@@ -10,7 +10,8 @@ client = AsyncOpenAI()
 class DataModelAnalysis(BaseModel):
 
     class DataModelFile(BaseModel):
-        fileName: str
+        filePath: str
+        cleanName: str
         explaination: str
 
     summary: str

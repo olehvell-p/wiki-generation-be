@@ -2,6 +2,8 @@ from typing import Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.future import select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.sql import func
 
 from src.database.models import (
     EntryPointsModel,
@@ -39,7 +41,7 @@ async def upsert_repo_model(
     db: AsyncSession, analyze_job_id: str, model_data: Optional[str] = None
 ) -> Optional[RepoModel]:
     """
-    Upsert a RepoModel in the database
+    Upsert a RepoModel in the database using INSERT...ON CONFLICT
 
     Args:
         db: Database session
@@ -50,37 +52,34 @@ async def upsert_repo_model(
         Created or updated RepoModel or None if operation failed
     """
     try:
-        # Try to find existing record
-        result = await db.execute(
-            select(RepoModel).where(RepoModel.analyze_job_id == analyze_job_id)
+        insert_stmt = insert(RepoModel).values(
+            analyze_job_id=analyze_job_id,
+            model_data=model_data
         )
-        existing_model = result.scalar_one_or_none()
         
-        if existing_model:
-            # Update existing record
-            existing_model.model_data = model_data
-            await db.commit()
-            await db.refresh(existing_model)
-            return existing_model
-        else:
-            # Create new record
-            repo_model = RepoModel(analyze_job_id=analyze_job_id, model_data=model_data)
-            db.add(repo_model)
-            await db.commit()
-            await db.refresh(repo_model)
-            return repo_model
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            index_elements=["analyze_job_id"],
+            set_={
+                "model_data": insert_stmt.excluded.model_data,
+                "updated_at": func.now()
+            }
+        )
+        
+        result = await db.execute(upsert_stmt.returning(RepoModel))
+        await db.commit()
+        return result.scalar_one()
+        
     except Exception as e:
         await db.rollback()
         print(f"Error upserting RepoModel: {e}")
         return None
 
 
-
 async def upsert_overview_model(
     db: AsyncSession, analyze_job_id: str, overview_data: str
 ) -> Optional[OverviewModel]:
     """
-    Upsert an OverviewModel in the database
+    Upsert an OverviewModel in the database using INSERT...ON CONFLICT
 
     Args:
         db: Database session
@@ -91,28 +90,23 @@ async def upsert_overview_model(
         Created or updated OverviewModel or None if operation failed
     """
     try:
-        # Try to find existing record
-        result = await db.execute(
-            select(OverviewModel).where(OverviewModel.analyze_job_id == analyze_job_id)
+        insert_stmt = insert(OverviewModel).values(
+            analyze_job_id=analyze_job_id,
+            overview_data=overview_data
         )
-        existing_model = result.scalar_one_or_none()
         
-        if existing_model:
-            # Update existing record
-            existing_model.overview_data = overview_data
-            await db.commit()
-            await db.refresh(existing_model)
-            return existing_model
-        else:
-            # Create new record
-            overview_model = OverviewModel(
-                analyze_job_id=analyze_job_id,
-                overview_data=overview_data,
-            )
-            db.add(overview_model)
-            await db.commit()
-            await db.refresh(overview_model)
-            return overview_model
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            index_elements=["analyze_job_id"],
+            set_={
+                "overview_data": insert_stmt.excluded.overview_data,
+                "updated_at": func.now()
+            }
+        )
+        
+        result = await db.execute(upsert_stmt.returning(OverviewModel))
+        await db.commit()
+        return result.scalar_one()
+        
     except Exception as e:
         await db.rollback()
         print(f"Error upserting OverviewModel: {e}")
@@ -120,14 +114,12 @@ async def upsert_overview_model(
 
 
 
-# ============ AuthModel Functions ============
-
 
 async def upsert_auth_model(
     db: AsyncSession, analyze_job_id: str, auth_data: Optional[str] = None
 ) -> Optional[AuthModel]:
     """
-    Upsert an AuthModel in the database
+    Upsert an AuthModel in the database using INSERT...ON CONFLICT
 
     Args:
         db: Database session
@@ -138,34 +130,27 @@ async def upsert_auth_model(
         Created or updated AuthModel or None if operation failed
     """
     try:
-        # Try to find existing record
-        result = await db.execute(
-            select(AuthModel).where(AuthModel.analyze_job_id == analyze_job_id)
+        insert_stmt = insert(AuthModel).values(
+            analyze_job_id=analyze_job_id,
+            auth_data=auth_data
         )
-        existing_model = result.scalar_one_or_none()
         
-        if existing_model:
-            # Update existing record
-            existing_model.auth_data = auth_data
-            await db.commit()
-            await db.refresh(existing_model)
-            return existing_model
-        else:
-            # Create new record
-            auth_model = AuthModel(
-                analyze_job_id=analyze_job_id,
-                auth_data=auth_data,
-            )
-            db.add(auth_model)
-            await db.commit()
-            await db.refresh(auth_model)
-            return auth_model
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            index_elements=["analyze_job_id"],
+            set_={
+                "auth_data": insert_stmt.excluded.auth_data,
+                "updated_at": func.now()
+            }
+        )
+        
+        result = await db.execute(upsert_stmt.returning(AuthModel))
+        await db.commit()
+        return result.scalar_one()
+        
     except Exception as e:
         await db.rollback()
         print(f"Error upserting AuthModel: {e}")
         return None
-
-
 
 
 # ============ DataModel Functions ============
@@ -175,7 +160,7 @@ async def upsert_data_model(
     db: AsyncSession, analyze_job_id: str, data_structure: Optional[str] = None
 ) -> Optional[DataModel]:
     """
-    Upsert a DataModel in the database
+    Upsert a DataModel in the database using INSERT...ON CONFLICT
 
     Args:
         db: Database session
@@ -186,42 +171,36 @@ async def upsert_data_model(
         Created or updated DataModel or None if operation failed
     """
     try:
-        # Try to find existing record
-        result = await db.execute(
-            select(DataModel).where(DataModel.analyze_job_id == analyze_job_id)
+        insert_stmt = insert(DataModel).values(
+            analyze_job_id=analyze_job_id,
+            data_structure=data_structure
         )
-        existing_model = result.scalar_one_or_none()
         
-        if existing_model:
-            # Update existing record
-            existing_model.data_structure = data_structure
-            await db.commit()
-            await db.refresh(existing_model)
-            return existing_model
-        else:
-            # Create new record
-            data_model = DataModel(
-                analyze_job_id=analyze_job_id,
-                data_structure=data_structure,
-            )
-            db.add(data_model)
-            await db.commit()
-            await db.refresh(data_model)
-            return data_model
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            index_elements=["analyze_job_id"],
+            set_={
+                "data_structure": insert_stmt.excluded.data_structure,
+                "updated_at": func.now()
+            }
+        )
+        
+        result = await db.execute(upsert_stmt.returning(DataModel))
+        await db.commit()
+        return result.scalar_one()
+        
     except Exception as e:
         await db.rollback()
         print(f"Error upserting DataModel: {e}")
         return None
 
 
-# ============ HowToUseModel Functions ============
 
 
 async def upsert_entry_points_model(
     db: AsyncSession, analyze_job_id: str, usage_data: Optional[str] = None
 ) -> Optional[EntryPointsModel]:
     """
-    Upsert an EntryPointsModel in the database
+    Upsert an EntryPointsModel in the database using INSERT...ON CONFLICT
 
     Args:
         db: Database session
@@ -232,39 +211,26 @@ async def upsert_entry_points_model(
         Created or updated EntryPointsModel or None if operation failed
     """
     try:
-        # Try to find existing record
-        result = await db.execute(
-            select(EntryPointsModel).where(EntryPointsModel.analyze_job_id == analyze_job_id)
+        insert_stmt = insert(EntryPointsModel).values(
+            analyze_job_id=analyze_job_id,
+            usage_data=usage_data
         )
-        existing_model = result.scalar_one_or_none()
         
-        if existing_model:
-            # Update existing record
-            existing_model.usage_data = usage_data
-            await db.commit()
-            await db.refresh(existing_model)
-            return existing_model
-        else:
-            # Create new record
-            entry_points_model = EntryPointsModel(
-                analyze_job_id=analyze_job_id,
-                usage_data=usage_data,
-            )
-            db.add(entry_points_model)
-            await db.commit()
-            await db.refresh(entry_points_model)
-            return entry_points_model
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            index_elements=["analyze_job_id"],
+            set_={
+                "usage_data": insert_stmt.excluded.usage_data,
+                "updated_at": func.now()
+            }
+        )
+        
+        # Execute and return the upserted row
+        result = await db.execute(upsert_stmt.returning(EntryPointsModel))
+        await db.commit()
+        return result.scalar_one()
+        
     except Exception as e:
         await db.rollback()
         print(f"Error upserting EntryPointsModel: {e}")
         return None
 
-
-# ============ Backward Compatibility Aliases ============
-
-# Keep old function names for backward compatibility
-add_repo_model = upsert_repo_model
-add_overview_model = upsert_overview_model
-add_auth_model = upsert_auth_model
-add_data_model = upsert_data_model
-add_entry_points_model = upsert_entry_points_model

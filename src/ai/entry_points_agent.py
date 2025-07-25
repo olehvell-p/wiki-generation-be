@@ -10,7 +10,8 @@ client = AsyncOpenAI()
 class EntryPoints(BaseModel):
 
     class EntryPointFile(BaseModel):
-        fileName: str
+        filePath: str
+        cleanName: str
         explaination: str
 
     summary: str

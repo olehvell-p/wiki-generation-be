@@ -10,11 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from src.database.db import (
-    add_auth_model,
-    add_data_model,
-    add_entry_points_model,
-    add_overview_model,
-    add_repo_model,
+    upsert_auth_model,
+    upsert_data_model,
+    upsert_entry_points_model,
+    upsert_overview_model,
+    upsert_repo_model,
     get_models_by_analyze_job_id,
 )
 from src.ai.entry_points_agent import get_entry_points
@@ -56,7 +56,7 @@ async def generate_analysis_stream(job: AnalyzeJobs, db: AsyncSession):
             repo_model, overview_model, auth_model, data_model, entry_points_model = (
                 models_result
             )
-            if repo_model and overview_model:
+            if repo_model and overview_model and auth_model and data_model and entry_points_model:
 
                 yield f"data: {json.dumps({'event_type': 'overview', 'message': overview_model.overview_data})}\n\n"
                 yield f"data: {json.dumps({'event_type': 'entry_points', 'message': entry_points_model.usage_data})}\n\n"
@@ -87,12 +87,12 @@ async def generate_analysis_stream(job: AnalyzeJobs, db: AsyncSession):
 
         # Build repo model if not exists
         repo_model = await build_repo_model("/tmp/repo/" + job.repo_name)
-        await add_repo_model(db, job.id, repo_model.model_dump_json())
+        await upsert_repo_model(db, job.id, repo_model.model_dump_json())
 
         # Generate overview
         overview = await get_repo_overview(repo_model)
         yield f"data: {json.dumps({'event_type': 'overview', 'message': overview.model_dump_json()})}\n\n"
-        await add_overview_model(db, job.id, overview.model_dump_json())
+        await upsert_overview_model(db, job.id, overview.model_dump_json())
 
         # Run analysis tasks in parallel
         print("Starting parallel analysis tasks...")
@@ -119,16 +119,16 @@ async def generate_analysis_stream(job: AnalyzeJobs, db: AsyncSession):
 
             if task_name == "entry_points":
                 # Save to database
-                await add_entry_points_model(db, job.id, result.model_dump_json())
+                await upsert_entry_points_model(db, job.id, result.model_dump_json())
                 # Yield SSE message
                 yield f"data: {json.dumps({'event_type': 'entry_points', 'message': result.model_dump_json()})}\n\n"
 
             elif task_name == "auth_analysis":
-                await add_auth_model(db, job.id, result.model_dump_json())
+                await upsert_auth_model(db, job.id, result.model_dump_json())
                 yield f"data: {json.dumps({'event_type': 'auth_analysis', 'message': result.model_dump_json()})}\n\n"
 
             elif task_name == "data_model_analysis":
-                await add_data_model(db, job.id, result.model_dump_json())
+                await upsert_data_model(db, job.id, result.model_dump_json())
                 yield f"data: {json.dumps({'event_type': 'data_model_analysis', 'message': result.model_dump_json()})}\n\n"
 
         # Send completion event to signal the stream is finished
@@ -136,6 +136,5 @@ async def generate_analysis_stream(job: AnalyzeJobs, db: AsyncSession):
         await db.commit()
 
     except Exception as e:
-        print("error", str(e))
         yield f"data: {json.dumps({'event_type': 'error', 'repo_id': str(job.id), 'message': f'Analysis failed: {str(e)}'})}\n\n"
         return
