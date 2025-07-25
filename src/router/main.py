@@ -3,6 +3,7 @@ import re
 import json
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 from typing import Dict, Any, Optional, List, Tuple
 from contextlib import asynccontextmanager
@@ -61,6 +62,15 @@ app = FastAPI(
     description="A FastAPI application for analyzing GitHub repository URLs",
     version="1.0.0",
     lifespan=lifespan,
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure this properly for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

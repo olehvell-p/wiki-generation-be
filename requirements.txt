@@ -1,5 +1,6 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
+gunicorn==21.2.0
 pydantic==2.5.0
 python-multipart==0.0.6 
 pytest
@@ -12,3 +13,4 @@ aiosqlite==0.19.0
 asyncpg==0.29.0
 greenlet==3.0.1
 GitPython==3.1.40
+psycopg2-binary==2.9.7
