@@ -1,6 +1,8 @@
 import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
+from sqlalchemy.exc import IntegrityError
+import logging
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:mysecretpassword@localhost:5432/postgres")
@@ -42,5 +44,16 @@ async def get_db():
 
 async def init_db():
     """Initialize database tables"""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all) 
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logging.info("Database tables created successfully")
+    except IntegrityError as e:
+        if "already exists" in str(e):
+            logging.info("Database tables already exist, skipping creation")
+        else:
+            logging.error(f"IntegrityError during table creation: {e}")
+            raise
+    except Exception as e:
+        logging.error(f"Error creating database tables: {e}")
+        raise 
