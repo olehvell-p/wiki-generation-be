@@ -35,7 +35,7 @@ async def generate_analysis_stream(job: AnalyzeJobs, db: AsyncSession):
         SSE formatted messages with analysis progress
     """
     try:
-        yield f"data: {json.dumps({'repo_id': str(job.id), 'name': job.repo_name, "default_branch": job.default_branch, 'owner': job.owner, 'link': job.github_url, 'event_type': 'start'})}\n\n"
+        yield f"data: {json.dumps({'repo_id': str(job.id), 'name': job.repo_name, 'default_branch': job.default_branch, 'owner': job.owner, 'link': job.github_url, 'event_type': 'start'})}\n\n"
 
         # now check if we parsed this repo before
         models_result = await get_models_by_analyze_job_id(db, job.id)
