@@ -1,6 +1,9 @@
 import asyncio
 import json
 import os
+import shutil
+import zipfile
+import requests
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.db import (
@@ -20,7 +23,60 @@ from src.database.models import (
 from src.analyzer.repo_analyzer import build_repo_model, find_readme
 from src.ai.overview_agent import get_repo_overview
 
-import git
+
+async def download_github_repo(github_url: str, destination_path: str, default_branch: str = "main"):
+    """
+    Download a GitHub repository as ZIP and extract it to the destination path
+    
+    Args:
+        github_url: GitHub repository URL (e.g., https://github.com/owner/repo)
+        destination_path: Local path where to extract the repository
+        default_branch: The default branch to download (defaults to 'main')
+    """
+    # Extract owner and repo from GitHub URL
+    # Handle both https://github.com/owner/repo and https://github.com/owner/repo.git
+    github_url = github_url.rstrip('.git')
+    parts = github_url.split('/')
+    owner = parts[-2]
+    repo = parts[-1]
+    
+    # GitHub's ZIP download URL
+    zip_url = f"https://github.com/{owner}/{repo}/archive/refs/heads/{default_branch}.zip"
+    
+    try:
+        # Download the ZIP file
+        response = requests.get(zip_url, stream=True)
+        response.raise_for_status()
+        
+        # Create a temporary ZIP file
+        zip_path = f"/tmp/{repo}.zip"
+        with open(zip_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        # Extract the ZIP file
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall("/tmp/")
+        
+        # GitHub creates a folder named "repo-branch", we need to rename it to just "repo"
+        extracted_folder = f"/tmp/{repo}-{default_branch}"
+        if os.path.exists(extracted_folder):
+            if os.path.exists(destination_path):
+                shutil.rmtree(destination_path)
+            shutil.move(extracted_folder, destination_path)
+        
+        # Clean up the ZIP file
+        os.remove(zip_path)
+        
+    except Exception as e:
+        # If main branch fails, try master branch
+        if default_branch == "main":
+            try:
+                download_github_repo(github_url, destination_path, "master")
+            except Exception:
+                raise Exception(f"Failed to download repository from {github_url}: {str(e)}")
+        else:
+            raise Exception(f"Failed to download repository from {github_url}: {str(e)}")
 
 
 async def generate_analysis_stream(job: AnalyzeJobs, db: AsyncSession):
@@ -66,13 +122,13 @@ async def generate_analysis_stream(job: AnalyzeJobs, db: AsyncSession):
 
                 return
 
-        # check if we cloned repo before
+        # check if we downloaded repo before
         if not os.path.exists("/tmp/repo/" + job.repo_name):
-            # clone repo
-            git.Repo.clone_from(job.github_url, "/tmp/repo/" + job.repo_name)
+            # download repo as ZIP from GitHub (git plugin )
+            await download_github_repo(job.github_url, "/tmp/repo/" + job.repo_name, job.default_branch or "main")
 
         # check if repo has readme to retrun early
-        readme_path = await find_readme("/tmp/repo" + job.repo_name)
+        readme_path = await find_readme("/tmp/repo/" + job.repo_name)
         if readme_path:
             yield f"data: {json.dumps({'event_type': 'readme',  'message': {'has_readme': True, 'readme': readme_path}})}\n\n"
         else:
